@@ -1,16 +1,12 @@
-set(sources
-    test.cpp
-)
+cmake_minimum_required(VERSION 3.11)
 
-set(name test)
+# Test code
+set(name melgan-test)
+set(sources test_layers.cpp test_melgan.cpp)
+add_executable(${name} ${sources})
 
-add_executable(name ${sources})
-target_link_libraries(name PUBLIC
-    gtest_main
-    melgan
-)
+# Link
+target_link_libraries(${name} PUBLIC gtest_main melgan)
 
-add_test(
-    NAME name
-    COMMAND test
-)
+# Register
+add_test(NAME ${name} COMMAND ${name})
