@@ -13,11 +13,14 @@ Constants
 
 
 const uint TEST_FRAMES = 887;
-const std::string TEST_ASSETS_DIR = "/home/mrm5248/468-final/melgan-cuda/test/assets/";
+const std::string TEST_ASSETS_DIR =
+    "/home/mrm5248/468-final/melgan-cuda/test/assets/";
+
 
 /******************************************************************************
 Tests
 ******************************************************************************/
+
 
 TEST(test, add)
 {
@@ -109,13 +112,14 @@ TEST(test, tanh)
     cuda::copy_to_device(activation_d, activation, bytes);
 
     // Perform op
-    activation_d = layer::leaky_relu(activation_d, size);
+    activation_d = layer::tanh(activation_d, size);
 
     // Overwrite activation
     cuda::copy_to_host(activation, activation_d, bytes);
 
     // Did we get the right answer?
-    for (uint i = 0; i < size; ++i) ASSERT_EQ(answer[i], activation[i]);
+    for (uint i = 0; i < size; ++i)
+        ASSERT_TRUE(abs(answer[i] - activation[i]) < 1e-4);
 
     // Free memory
     free(answer);

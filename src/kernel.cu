@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "kernel.hpp"
 
 
@@ -7,7 +9,7 @@ Constants
 
 
 /* leaky_relu activation slope */
-const unsigned int LEAKY_RELU_SLOPE = .2;
+const float LEAKY_RELU_SLOPE = .2;
 
 /* amount of reflection padding per side */
 const unsigned int REFLECTION_PAD_SIZE = 3;

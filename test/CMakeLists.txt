@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.11)
 
 # Test code
 set(name melgan-test)
-set(sources test_layers.cpp test_melgan.cpp)
+set(sources test_layers.cpp test_load.cpp test_melgan.cpp)
 add_executable(${name} ${sources})
 
 # Link

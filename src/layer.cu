@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "layer.hpp"
 #include "kernel.hpp"
 

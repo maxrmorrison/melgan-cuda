@@ -8,7 +8,7 @@ Constants
 
 
 /* leaky_relu activation slope */
-extern const unsigned int LEAKY_RELU_SLOPE;
+extern const float LEAKY_RELU_SLOPE;
 
 /* amount of reflection padding per side */
 extern const unsigned int REFLECTION_PAD_SIZE;
