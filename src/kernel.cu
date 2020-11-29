@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "kernel.hpp"
+#include "model.hpp"
 
 
 /******************************************************************************
@@ -41,11 +42,36 @@ namespace kernel {
 
     /* convolution */
     __global__ void conv(const float * const input,
-                         const float * const weight,
-                         const float * const bias)
+                         float *output,
+                         const unsigned int frames,
+                         const Convolution convolution)
     {
-        // TODO
-        // NOTE: use modulus to implement reflection padding here
+        int tid = blockIdx.x * blockDim.x + threadIdx.x;
+        if (tid == 0) {
+            printf(
+                "%d %d %d %d %d %d %d\n",
+                convolution.input_channels,
+                convolution.output_channels,
+                convolution.dilation,
+                convolution.kernel_size,
+                convolution.reflection_padding,
+                convolution.stride,
+                convolution.zero_padding
+            );
+        }
+        __syncthreads();
+
+        // TODO - correct conv with no optimizations
+        // Note - assume stride is always 1 and zero_padding is always 0
+        // for (unsigned int i = 0; c < convolution.output_channels; ++i) {
+        //     float sum = 0.;
+        //     for (int k = 0; k < kernel_size; ++k) {
+        //         for (unsigned int j = 0; j < convolution.input_channels; ++j) {
+        //             float input = input[];
+        //             float weight = convolution.weight[];
+        //         }
+        //     }
+        // }
     }
 
 

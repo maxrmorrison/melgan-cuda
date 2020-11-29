@@ -1,6 +1,8 @@
 #ifndef KERNELS_HPP
 #define KERNELS_HPP
 
+#include "model.hpp"
+
 
 /******************************************************************************
 Constants
@@ -27,8 +29,9 @@ namespace kernel {
 
     /* convolution */
     __global__ void conv(const float * const input,
-                         const float * const weight,
-                         const float * const bias);
+                         float *output,
+                         unsigned int frames,
+                         const Convolution convolution);
 
     /* leaky relu activation */
     __global__ void leaky_relu(float *input, const unsigned int size);

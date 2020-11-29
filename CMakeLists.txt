@@ -41,6 +41,28 @@ target_compile_options(${name} PRIVATE
 target_compile_options(${name} PRIVATE
                                $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_75,code=sm_75>)
 
+set(cudnnSources
+    /home/mrm5248/cudnn/lib64/libcudnn_adv_infer.so
+    /home/mrm5248/cudnn/lib64/libcudnn_adv_train.so
+    /home/mrm5248/cudnn/lib64/libcudnn_cnn_infer.so
+    /home/mrm5248/cudnn/lib64/libcudnn_cnn_train.so
+    /home/mrm5248/cudnn/lib64/libcudnn_ops_infer.so
+    /home/mrm5248/cudnn/lib64/libcudnn_ops_train.so
+    /home/mrm5248/cudnn/lib64/libcudnn.so)
+set(cudnnHeaders
+    /home/mrm5248/cudnn/include/cudnn_adv_infer.h
+    /home/mrm5248/cudnn/include/cudnn_adv_train.h
+    /home/mrm5248/cudnn/include/cudnn_backend.h
+    /home/mrm5248/cudnn/include/cudnn_cnn_infer.h
+    /home/mrm5248/cudnn/include/cudnn_cnn_train.h
+    /home/mrm5248/cudnn/include/cudnn.h
+    /home/mrm5248/cudnn/include/cudnn_ops_infer.h
+    /home/mrm5248/cudnn/include/cudnn_ops_train.h
+    /home/mrm5248/cudnn/include/cudnn_version.h)
+add_library(Cudnn SHARED ${cudnnSources} ${cudnnHeaders})
+target_include_directories(Cudnn PUBLIC /home/mrm5248/cudnn/include)
+set_target_properties(Cudnn PROPERTIES LINKER_LANGUAGE CXX)
+
 # Test
 enable_testing()
 add_subdirectory(googletest)
@@ -48,4 +70,9 @@ add_subdirectory(test)
 
 # Link
 add_executable(infer src/main.cpp)
-target_link_libraries(infer ${name} Boost::program_options)
+target_link_libraries(
+    infer
+    ${name}
+    Boost::program_options
+    Cudnn
+)
