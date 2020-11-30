@@ -1,6 +1,8 @@
 #ifndef LAYER_HPP
 #define LAYER_HPP
 
+#include <cudnn.h>
+
 #include "model.hpp"
 
 
@@ -24,15 +26,23 @@ namespace layer {
     /* convolution */
     float *conv(float *input,
                 const unsigned int frames,
-                const Convolution &convolution);
+                const Convolution &convolution,
+                cudnnHandle_t cudnn);
 
     /* convolution without freeing activation */
     float *conv_no_free(float *input,
                         const unsigned int frames,
-                        const Convolution &convolution);
+                        const Convolution &convolution,
+                        cudnnHandle_t cudnn);
 
     /* leaky relu activation */
     float *leaky_relu(float *activation, const unsigned int size);
+
+    /* reflection padding */
+    float *reflection_padding(float *activation,
+                              const unsigned int frames,
+                              const unsigned int channels,
+                              const unsigned int padding);
 
     /* tanh activation */
     float *tanh(float *activation, const unsigned int size);
@@ -40,8 +50,19 @@ namespace layer {
     /* transpose convolution */
     float *transpose_conv(float *input,
                           const unsigned int frames,
-                          const Convolution &convolution);
+                          const Convolution &convolution,
+                          cudnnHandle_t cudnn);
 }
+
+
+/******************************************************************************
+Utilities
+******************************************************************************/
+
+
+/* retrieve number of output frames */
+unsigned int get_num_output_frames(unsigned int input_frames,
+                                   const Convolution &convolution);
 
 
 #endif /* LAYER_HPP */

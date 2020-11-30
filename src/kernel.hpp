@@ -27,22 +27,18 @@ namespace kernel {
                         const float * const y,
                         const unsigned int size);
 
-    /* convolution */
-    __global__ void conv(const float * const input,
-                         float *output,
-                         unsigned int frames,
-                         const Convolution convolution);
-
     /* leaky relu activation */
     __global__ void leaky_relu(float *input, const unsigned int size);
 
+    /* reflection padding */
+    __global__ void reflection_padding(float *input,
+                                       float *output,
+                                       const unsigned int frames,
+                                       const unsigned int channels,
+                                       const unsigned int padding);
+
     /* tanh activation */
     __global__ void tanh(float *input, const unsigned int size);
-
-    /* transpose convolution */
-    __global__ void transpose_conv(const float * const input,
-                                   const float * const weight,
-                                   const float * const bias);
 }
 
 

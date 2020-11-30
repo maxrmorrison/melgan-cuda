@@ -40,41 +40,6 @@ namespace kernel {
     }
 
 
-    /* convolution */
-    __global__ void conv(const float * const input,
-                         float *output,
-                         const unsigned int frames,
-                         const Convolution convolution)
-    {
-        int tid = blockIdx.x * blockDim.x + threadIdx.x;
-        if (tid == 0) {
-            printf(
-                "%d %d %d %d %d %d %d\n",
-                convolution.input_channels,
-                convolution.output_channels,
-                convolution.dilation,
-                convolution.kernel_size,
-                convolution.reflection_padding,
-                convolution.stride,
-                convolution.zero_padding
-            );
-        }
-        __syncthreads();
-
-        // TODO - correct conv with no optimizations
-        // Note - assume stride is always 1 and zero_padding is always 0
-        // for (unsigned int i = 0; c < convolution.output_channels; ++i) {
-        //     float sum = 0.;
-        //     for (int k = 0; k < kernel_size; ++k) {
-        //         for (unsigned int j = 0; j < convolution.input_channels; ++j) {
-        //             float input = input[];
-        //             float weight = convolution.weight[];
-        //         }
-        //     }
-        // }
-    }
-
-
     /* leaky relu activation */
     __global__ void leaky_relu(float *input, const unsigned int size)
     {
@@ -82,8 +47,34 @@ namespace kernel {
         if (index < size) {
             const float value = input[index];
             input[index] = fmaxf(value, LEAKY_RELU_SLOPE * value);
-            // OR
-            // if (value < 0) input[index] = LEAKY_RELU_SLOPE * value;
+        }
+    }
+
+
+    /* reflection padding */
+    __global__ void reflection_padding(float *input,
+                                       float *output,
+                                       const unsigned int frames,
+                                       const unsigned int channels,
+                                       const unsigned int padding)
+    {
+        const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+        const unsigned int output_frames = frames + 2 * padding;
+        const unsigned int channel = index / output_frames;
+        const int output_frame = index % output_frames;
+        int input_frame = (output_frame - padding);
+
+        if (index < output_frames * channels) {
+            // Reflect
+            if (input_frame < 0)
+                input_frame = -input_frame;
+            else if (input_frame >= frames)
+                input_frame = frames - (input_frame - frames) - 2;
+
+            // Pad
+            output[channel * output_frames + output_frame] =
+                input[channel * frames + input_frame];
+
         }
     }
 
@@ -93,14 +84,5 @@ namespace kernel {
     {
         const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
         if (index < size) input[index] = tanhf(input[index]);
-    }
-
-
-    /* transpose convolution */
-    __global__ void transpose_conv(const float * const input,
-                                   const float * const weight,
-                                   const float * const bias)
-    {
-        // TODO
     }
 }

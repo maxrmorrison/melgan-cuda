@@ -1,4 +1,5 @@
 #include <cudnn.h>
+#include <iostream>
 #include <stdio.h>
 
 #include "cuda.hpp"
@@ -6,15 +7,40 @@
 #include "kernel.hpp"
 
 
-#define checkCUDNN(expression)                               \
-  {                                                          \
-    cudnnStatus_t status = (expression);                     \
-    if (status != CUDNN_STATUS_SUCCESS) {                    \
-      std::cerr << "Error on line " << __LINE__ << ": "      \
-                << cudnnGetErrorString(status) << std::endl; \
-      std::exit(EXIT_FAILURE);                               \
-    }                                                        \
-  }
+/******************************************************************************
+Utilities
+******************************************************************************/
+
+
+static int
+checkCudnnError(cudnnStatus_t code, const char *expr, const char *file, int line)
+{
+    if (code)
+    {
+        printf("CUDNN error at %s:%d, code=%d (%s) in '%s'\n", file, line, (int)code, cudnnGetErrorString(code), expr);
+        return 1;
+    }
+    return 0;
+}
+
+
+#define checkCudnnErr(...)                                                        \
+    do                                                                            \
+    {                                                                             \
+        int err = checkCudnnError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
+        if (err) exit(1);                                                         \
+    } while (0)
+
+
+unsigned int get_num_output_frames(unsigned int input_frames,
+                                   const Convolution &convolution)
+{
+    unsigned int d = convolution.dilation;
+    unsigned int k = convolution.kernel_size;
+    unsigned int p = convolution.zero_padding;
+    unsigned int s = convolution.stride;
+    return ((input_frames + 2 * p - d * (k - 1) - 1) / (float) s + 1);
+}
 
 
 /******************************************************************************
@@ -50,9 +76,10 @@ namespace layer {
     /* convolution */
     float *conv(float *input,
                 const unsigned int frames,
-                const Convolution &convolution)
+                const Convolution &convolution,
+                cudnnHandle_t cudnn)
     {
-        float *output = conv_no_free(input, frames, convolution);
+        float *output = conv_no_free(input, frames, convolution, cudnn);
         cudaFree(input);
         return output;
     }
@@ -61,15 +88,16 @@ namespace layer {
     /* convolution without freeing input */
     float *conv_no_free(float *input,
                         const unsigned int frames,
-                        const Convolution &convolution)
+                        const Convolution &convolution,
+                        cudnnHandle_t cudnn)
     {
-        cudnnHandle_t cudnn;
-        checkCUDNN(cudnnCreate(&cudnn));
+        unsigned int output_frames = get_num_output_frames(
+            frames, convolution);
 
         // Setup input
         cudnnTensorDescriptor_t input_descriptor;
-        checkCUDNN(cudnnCreateTensorDescriptor(&input_descriptor));
-        checkCUDNN(cudnnSetTensor4dDescriptor(
+        checkCudnnErr(cudnnCreateTensorDescriptor(&input_descriptor));
+        checkCudnnErr(cudnnSetTensor4dDescriptor(
             input_descriptor,
             /*format=*/CUDNN_TENSOR_NCHW,
             /*dataType=*/CUDNN_DATA_FLOAT,
@@ -79,22 +107,21 @@ namespace layer {
             /*image_width=*/frames));
 
         // Setup output
-        // TODO - output size
         cudnnTensorDescriptor_t output_descriptor;
-        checkCUDNN(cudnnCreateTensorDescriptor(&output_descriptor));
-        checkCUDNN(cudnnSetTensor4dDescriptor(
+        checkCudnnErr(cudnnCreateTensorDescriptor(&output_descriptor));
+        checkCudnnErr(cudnnSetTensor4dDescriptor(
             output_descriptor,
             /*format=*/CUDNN_TENSOR_NCHW,
             /*dataType=*/CUDNN_DATA_FLOAT,
             /*batch_size=*/1,
             /*channels=*/convolution.output_channels,
             /*image_height=*/1,
-            /*image_width=*/image.cols));
+            /*image_width=*/output_frames));
 
         // Setup kernel
         cudnnFilterDescriptor_t kernel_descriptor;
-        checkCUDNN(cudnnCreateFilterDescriptor(&kernel_descriptor));
-        checkCUDNN(cudnnSetFilter4dDescriptor(
+        checkCudnnErr(cudnnCreateFilterDescriptor(&kernel_descriptor));
+        checkCudnnErr(cudnnSetFilter4dDescriptor(
             kernel_descriptor,
             /*dataType=*/CUDNN_DATA_FLOAT,
             /*format=*/CUDNN_TENSOR_NCHW,
@@ -103,11 +130,22 @@ namespace layer {
             /*kernel_height=*/1,
             /*kernel_width=*/convolution.kernel_size));
 
+        // Setup bias
+        cudnnTensorDescriptor_t bias_descriptor;
+        checkCudnnErr(cudnnCreateTensorDescriptor(&bias_descriptor));
+        checkCudnnErr(cudnnSetTensor4dDescriptor(
+            bias_descriptor,
+            /*format=*/CUDNN_TENSOR_NCHW,
+            /*dataType=*/CUDNN_DATA_FLOAT,
+            /*batch_size=*/1,
+            /*channels=*/convolution.output_channels,
+            /*image_height=*/1,
+            /*image_width=*/1));
+
         // Setup convolution
-        // TODO - reflection padding
         cudnnConvolutionDescriptor_t convolution_descriptor;
-        checkCUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
-        checkCUDNN(cudnnSetConvolution2dDescriptor(
+        checkCudnnErr(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
+        checkCudnnErr(cudnnSetConvolution2dDescriptor(
             convolution_descriptor,
             /*pad_height=*/0,
             /*pad_width=*/convolution.zero_padding,
@@ -117,10 +155,13 @@ namespace layer {
             /*dilation_width=*/convolution.dilation,
             /*mode=*/CUDNN_CROSS_CORRELATION,
             /*computeType=*/CUDNN_DATA_FLOAT));
+        checkCudnnErr(cudnnSetConvolutionMathType(
+            convolution_descriptor,
+            CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION));
 
         // Get correct sizes
         int batch_size{0}, channels{0}, height{0}, width{0};
-        checkCUDNN(cudnnGetConvolution2dForwardOutputDim(
+        checkCudnnErr(cudnnGetConvolution2dForwardOutputDim(
             convolution_descriptor,
             input_descriptor,
             kernel_descriptor,
@@ -128,22 +169,25 @@ namespace layer {
             &channels,
             &height,
             &width));
+        printf("%d %d %d %d %d\n", batch_size, channels, height, width, output_frames);
 
         // Setup conv algorithm
-        cudnnConvolutionFwdAlgo_t convolution_algorithm;
-        checkCUDNN(cudnnGetConvolutionForwardAlgorithm(
-            cudnn,
-            input_descriptor,
-            kernel_descriptor,
-            convolution_descriptor,
-            output_descriptor,
-            CUDNN_CONVOLUTION_FWD_PREFER_FASTEST,
-            /*memoryLimitInBytes=*/0,
-            &convolution_algorithm));
+        cudnnConvolutionFwdAlgo_t convolution_algorithm =
+            CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
+        // cudnnConvolutionFwdAlgo_t convolution_algorithm;
+        // checkCudnnErr(cudnnGetConvolutionForwardAlgorithm(
+        //     cudnn,
+        //     input_descriptor,
+        //     kernel_descriptor,
+        //     convolution_descriptor,
+        //     output_descriptor,
+        //     CUDNN_CONVOLUTION_FWD_PREFER_FASTEST,
+        //     /*memoryLimitInBytes=*/0,
+        //     &convolution_algorithm));
 
-        // Get workspace size
+        // Setup workspace
         size_t workspace_bytes = 0;
-        checkCUDNN(cudnnGetConvolutionForwardWorkspaceSize(
+        checkCudnnErr(cudnnGetConvolutionForwardWorkspaceSize(
             cudnn,
             input_descriptor,
             kernel_descriptor,
@@ -151,59 +195,118 @@ namespace layer {
             output_descriptor,
             convolution_algorithm,
             &workspace_bytes));
-        printf("Workspace size: %f\n", (workspace_bytes / 1048576.0));
+        void *workspace = nullptr;
+        cudaMalloc(&workspace, workspace_bytes);
 
-        // TODO - fix output allocation
-        float* d_output{nullptr};
-        cudaMalloc(&d_output, image_bytes);
-        cudaMemset(d_output, 0, image_bytes);
+        // Setup activation
+        cudnnActivationDescriptor_t activation_descriptor;
+        checkCudnnErr(cudnnCreateActivationDescriptor(&activation_descriptor));
+        checkCudnnErr(cudnnSetActivationDescriptor(
+            activation_descriptor,
+            CUDNN_ACTIVATION_IDENTITY,
+            CUDNN_PROPAGATE_NAN,
+            0.));
 
-        const float alpha = 1.0f, beta = 0.0f;
+        // Allocate kernel
+        float size_kernel = convolution.output_channels *
+                            convolution.input_channels *
+                            convolution.kernel_size *
+                            sizeof(float);
+        float *kernel = cuda::allocate(size_kernel);
+        cuda::copy_to_device(kernel, convolution.weight, size_kernel);
 
-        checkCUDNN(cudnnConvolutionForward(
+        // Allocate bias
+        float bias_size = convolution.output_channels;
+        float *bias = cuda::allocate(bias_size);
+        cuda::copy_to_device(bias, convolution.bias, bias_size);
+
+        // Allocate output
+        float *output = cuda::allocate(
+            convolution.output_channels * output_frames * sizeof(float));
+
+        // No blending
+        const float alpha1 = 1.0f, alpha2 = 0.0f;
+
+        // Perform op
+        checkCudnnErr(cudnnConvolutionBiasActivationForward(
             cudnn,
-            &alpha,
+            &alpha1,
             input_descriptor,
-            d_input,
+            input,
             kernel_descriptor,
-            d_kernel,
+            kernel,
             convolution_descriptor,
             convolution_algorithm,
-            d_workspace,
+            workspace,
             workspace_bytes,
-            &beta,
+            &alpha2,
             output_descriptor,
-            d_output));
+            output,
+            bias_descriptor,
+            bias,
+            activation_descriptor,
+            output_descriptor,
+            output));
+
+        printf("Did a conv\n");
 
         // Clean up
+        cudnnDestroyActivationDescriptor(activation_descriptor);
+        cudnnDestroyConvolutionDescriptor(convolution_descriptor);
+        cudnnDestroyFilterDescriptor(kernel_descriptor);
         cudnnDestroyTensorDescriptor(input_descriptor);
         cudnnDestroyTensorDescriptor(output_descriptor);
-        cudnnDestroyFilterDescriptor(kernel_descriptor);
-        cudnnDestroyConvolutionDescriptor(convolution_descriptor);
-        cudnnDestroy(cudnn);
-        // unsigned int size = frames * convolution.output_channels;
-        // unsigned int blocks = (size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-        // float *output = cuda::allocate(size * sizeof(float));
-        // kernel::conv<<<blocks, THREADS_PER_BLOCK>>>(
-        //     input, output, frames, convolution);
-        // return output;
+        cudnnDestroyTensorDescriptor(bias_descriptor);
+        cuda::free(kernel);
+        cuda::free(bias);
+
+        // User frees output
+        return output;
     }
 
 
     /* leaky relu activation */
     float *leaky_relu(float *activation, const unsigned int size)
     {
-        const unsigned int blocks = (size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+        const unsigned int blocks =
+            (size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
         kernel::leaky_relu<<<blocks, THREADS_PER_BLOCK>>>(activation, size);
         cudaDeviceSynchronize();
         return activation;
     }
 
 
+    float *reflection_padding(float *activation,
+                              const unsigned int frames,
+                              const unsigned int channels,
+                              const unsigned int padding)
+    {
+        // Allocate output
+        const unsigned int output_frames = frames + 2 * padding;
+        const unsigned int output_size = output_frames * channels;
+        const unsigned int output_bytes = output_size * sizeof(float);
+        float *output = cuda::allocate(output_bytes);
+
+        // Perform padding
+        const unsigned int blocks =
+            (output_size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+        kernel::reflection_padding<<<blocks, THREADS_PER_BLOCK>>>(
+            activation, output, frames, channels, padding);
+        cudaDeviceSynchronize();
+
+        // Free input
+        cuda::free(activation);
+
+        // User frees output
+        return output;
+    }
+
+
     /* tanh activation */
     float *tanh(float *activation, const unsigned int size)
     {
-        const unsigned int blocks = (size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+        const unsigned int blocks =
+            (size + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
         kernel::tanh<<<blocks, THREADS_PER_BLOCK>>>(activation, size);
         cudaDeviceSynchronize();
         return activation;
@@ -213,10 +316,10 @@ namespace layer {
     /* transpose convolution */
     float *transpose_conv(float *input,
                           const unsigned int frames,
-                          const Convolution &convolution)
+                          const Convolution &convolution,
+                          cudnnHandle_t cudnn)
     {
         // TODO
-        float *output;
-        return output;
+        return nullptr;
     }
 }
