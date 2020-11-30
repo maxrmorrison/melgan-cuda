@@ -55,11 +55,12 @@ float *forward(float *mels, unsigned int frames, cudnnHandle_t cudnn)
         activation, frames, block_3, 2, cudnn);
 
     // Output block
-    activation = layer::leaky_relu(activation, frames);
+    activation = layer::leaky_relu(
+        activation, frames * CONV_41.input_channels);
     activation = layer::reflection_padding(
         activation, frames, CONV_41.input_channels, padding);
     activation = layer::conv(activation, frames + 2 * padding, CONV_41, cudnn);
-    activation = layer::tanh(activation, frames);
+    activation = layer::tanh(activation, frames * CONV_41.output_channels);
 
     // Copy to host
     float * output = (float *) malloc(frames * sizeof(float));
@@ -81,7 +82,7 @@ float *residual_block(float *activation,
                                    frames * block.conv.input_channels);
     activation = layer::reflection_padding(
         activation, frames, block.conv.input_channels, padding);
-    activation = layer::conv(activation, frames, block.conv, cudnn);
+    activation = layer::conv(activation, frames + 2 * padding, block.conv, cudnn);
     activation = layer::leaky_relu(activation,
                                    frames * block.conv.output_channels);
     activation = layer::conv(activation, frames, block.linear, cudnn);
@@ -102,7 +103,7 @@ float *upsample_residual_block(float *activation,
     // Upsample
     activation = layer::leaky_relu(
         activation,
-        frames * block.transpose_conv.input_channels);
+        frames * block.transpose_conv.output_channels);
     activation = layer::transpose_conv(activation,
                                        frames,
                                        block.transpose_conv,

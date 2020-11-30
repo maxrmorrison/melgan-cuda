@@ -30,6 +30,9 @@ namespace kernel {
     /* leaky relu activation */
     __global__ void leaky_relu(float *input, const unsigned int size);
 
+    /* printing utility */
+    __global__ void print(float *input, const unsigned int size);
+
     /* reflection padding */
     __global__ void reflection_padding(float *input,
                                        float *output,

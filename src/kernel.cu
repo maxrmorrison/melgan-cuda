@@ -51,6 +51,16 @@ namespace kernel {
     }
 
 
+    /* printing utility */
+    __global__ void print(float *input, const unsigned int size)
+    {
+        if (blockIdx.x * blockDim.x + threadIdx.x == 0) {
+            for (unsigned int i = 1000000; i < 1000000 + size; ++i) printf("%f ", input[i]);
+            printf("\n");
+        }
+    }
+
+
     /* reflection padding */
     __global__ void reflection_padding(float *input,
                                        float *output,
@@ -74,7 +84,6 @@ namespace kernel {
             // Pad
             output[channel * output_frames + output_frame] =
                 input[channel * frames + input_frame];
-
         }
     }
 

@@ -38,11 +38,14 @@ namespace layer {
     /* leaky relu activation */
     float *leaky_relu(float *activation, const unsigned int size);
 
+    /* printing utility */
+    void print(float *activation, const unsigned int size);
+
     /* reflection padding */
     float *reflection_padding(float *activation,
-                              const unsigned int frames,
-                              const unsigned int channels,
-                              const unsigned int padding);
+                                const unsigned int frames,
+                                const unsigned int channels,
+                                const unsigned int padding);
 
     /* tanh activation */
     float *tanh(float *activation, const unsigned int size);
@@ -61,8 +64,9 @@ Utilities
 
 
 /* retrieve number of output frames */
-unsigned int get_num_output_frames(unsigned int input_frames,
-                                   const Convolution &convolution);
-
+unsigned int get_num_output_frames_backward(unsigned int input_frames,
+                                            const Convolution &convolution);
+unsigned int get_num_output_frames_forward(unsigned int input_frames,
+                                           const Convolution &convolution);
 
 #endif /* LAYER_HPP */
