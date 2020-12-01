@@ -365,6 +365,9 @@ namespace layer {
             /*dilation_width=*/convolution.dilation,
             /*mode=*/CUDNN_CROSS_CORRELATION,
             /*computeType=*/CUDNN_DATA_FLOAT));
+        checkCudnnErr(cudnnSetConvolutionMathType(
+            convolution_descriptor,
+            CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION));
 
         // Setup workspace
         cudnnConvolutionBwdDataAlgo_t convolution_algorithm =

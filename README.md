@@ -1,2 +1,23 @@
 # melgan-cuda
-CUDA implementation of the MelGAN vocoder 
+CUDA implementation of the MelGAN vocoder
+
+
+### Installation
+
+Install CUDA and CUDNN. We recommend CUDA 11.0 and CUDNN 8.0.5, which were used for testing. Then, run `make`.
+
+
+### Usage
+
+```
+./build/melgan -i <input_file> -o <output_file> -f <frames>
+```
+
+`<input_file>` is the name of a 32-bit floating point file containing the input mel spectrogram.
+`<output_file>` is the name of a file to write the generated 32-bit floating point audio signal.
+`<frames>` is the number of mel spectrogram frames in the input.
+
+
+### Tests
+
+`./build/test_melgan`
