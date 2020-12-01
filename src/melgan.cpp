@@ -3,6 +3,7 @@
 #include "block.hpp"
 #include "convert.hpp"
 #include "cuda.hpp"
+#include "engine.hpp"
 #include "melgan.hpp"
 #include "load.hpp"
 #include "save.hpp"
@@ -52,6 +53,9 @@ Inference
 /* Infer waveform from mels on cpu */
 float *infer(const float *mels, const unsigned int frames)
 {
+    // Load conv weights on device
+    engine::start();
+
     // Setup cudnn
     cudnnHandle_t cudnn;
     checkCudnnErr(cudnnCreate(&cudnn));
@@ -64,13 +68,13 @@ float *infer(const float *mels, const unsigned int frames)
     cuda::copy_to_device(mels_d, mels, mel_size);
 
     // Infer
-    float *audio = forward(mels_d, frames, cudnn);
-
-    // Free GPU memory
-    cuda::free(mels_d);
+    float *audio = forward(mels_d, frames, cudnn, true);
 
     // Free cudnn
     cudnnDestroy(cudnn);
+
+    // Unload conv weights
+    engine::stop();
 
     // User frees audio
     return audio;

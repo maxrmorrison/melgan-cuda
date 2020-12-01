@@ -183,20 +183,16 @@ TESTDIR = test
 OBJDIR = obj/src
 TESTOBJDIR = obj/test
 SRCDIR = src
-OBJ = $(OBJDIR)/block.o $(OBJDIR)/convert.o $(OBJDIR)/cuda.o $(OBJDIR)/kernel.o $(OBJDIR)/layer.o $(OBJDIR)/load.o $(OBJDIR)/melgan.o $(OBJDIR)/model.o $(OBJDIR)/save.o
+OBJ = $(OBJDIR)/block.o $(OBJDIR)/convert.o $(OBJDIR)/cuda.o $(OBJDIR)/dummy.o $(OBJDIR)/engine.o $(OBJDIR)/kernel.o $(OBJDIR)/layer.o $(OBJDIR)/load.o $(OBJDIR)/melgan.o $(OBJDIR)/model.o $(OBJDIR)/save.o
 TESTOBJ = $(TESTOBJDIR)/test_melgan.o
 INC = $(wildcard ${SRCDIR}/*.hpp)
 
 # Target rules
-all: print_stuff build test
+all: build test
 
 build: $(BUILDDIR)/melgan
 
 test: $(BUILDDIR)/test_melgan
-
-print_stuff:
-	@echo $(OBJ)
-	@echo $(INC)
 
 check.deps:
 ifeq ($(SAMPLE_ENABLED),0)

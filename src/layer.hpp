@@ -27,13 +27,8 @@ namespace layer {
     float *conv(float *input,
                 const unsigned int frames,
                 const Convolution &convolution,
-                cudnnHandle_t cudnn);
-
-    /* convolution without freeing activation */
-    float *conv_no_free(float *input,
-                        const unsigned int frames,
-                        const Convolution &convolution,
-                        cudnnHandle_t cudnn);
+                cudnnHandle_t cudnn,
+                bool free_input);
 
     /* leaky relu activation */
     float *leaky_relu(float *activation, const unsigned int size);
@@ -43,9 +38,10 @@ namespace layer {
 
     /* reflection padding */
     float *reflection_padding(float *activation,
-                                const unsigned int frames,
-                                const unsigned int channels,
-                                const unsigned int padding);
+                              const unsigned int frames,
+                              const unsigned int channels,
+                              const unsigned int padding,
+                              bool free_input);
 
     /* tanh activation */
     float *tanh(float *activation, const unsigned int size);
@@ -54,7 +50,8 @@ namespace layer {
     float *transpose_conv(float *input,
                           const unsigned int frames,
                           const Convolution &convolution,
-                          cudnnHandle_t cudnn);
+                          cudnnHandle_t cudnn,
+                          bool free_input);
 }
 
 

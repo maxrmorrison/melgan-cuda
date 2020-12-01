@@ -31,14 +31,6 @@ namespace kernel {
         if (index < size) x[index] += y[index];
     }
 
-    __global__ void broadcast_add(float *x,
-                                  const float * const y,
-                                  const unsigned int rows,
-                                  const unsigned int cols)
-    {
-
-    }
-
 
     /* leaky relu activation */
     __global__ void leaky_relu(float *input, const unsigned int size)
@@ -55,7 +47,7 @@ namespace kernel {
     __global__ void print(float *input, const unsigned int size)
     {
         if (blockIdx.x * blockDim.x + threadIdx.x == 0) {
-            for (unsigned int i = 1000000; i < 1000000 + size; ++i) printf("%f ", input[i]);
+            for (unsigned int i = 0; i < size; ++i) printf("%f ", input[i]);
             printf("\n");
         }
     }

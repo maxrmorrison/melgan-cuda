@@ -6,13 +6,18 @@
 
 
 /* Forward pass through all layers */
-float *forward(float *mels, unsigned int frames, cudnnHandle_t cudnn)
+float *forward(float *mels,
+               unsigned int frames,
+               cudnnHandle_t cudnn,
+               bool free_input)
 {
     // Input block
     float *activation;
     const unsigned int padding = CONV_0.reflection_padding;
-    activation = layer::reflection_padding(mels, frames, N_MELS, padding);
-    activation = layer::conv(activation, frames + 2 * padding, CONV_0, cudnn);
+    activation = layer::reflection_padding(
+        mels, frames, N_MELS, padding, free_input);
+    activation = layer::conv(
+        activation, frames + 2 * padding, CONV_0, cudnn, true);
 
     // Block 0
     UpsampleResidualBlock block_0 = {
@@ -58,8 +63,9 @@ float *forward(float *mels, unsigned int frames, cudnnHandle_t cudnn)
     activation = layer::leaky_relu(
         activation, frames * CONV_41.input_channels);
     activation = layer::reflection_padding(
-        activation, frames, CONV_41.input_channels, padding);
-    activation = layer::conv(activation, frames + 2 * padding, CONV_41, cudnn);
+        activation, frames, CONV_41.input_channels, padding, true);
+    activation = layer::conv(
+        activation, frames + 2 * padding, CONV_41, cudnn, true);
     activation = layer::tanh(activation, frames * CONV_41.output_channels);
 
     // Copy to host
@@ -77,15 +83,17 @@ float *residual_block(float *activation,
                       cudnnHandle_t cudnn)
 {
     const unsigned int padding = block.conv.reflection_padding;
-    float *shortcut = layer::conv_no_free(activation, frames, block.shortcut, cudnn);
+    float *shortcut = layer::conv(
+        activation, frames, block.shortcut, cudnn, false);
     activation = layer::leaky_relu(activation,
                                    frames * block.conv.input_channels);
     activation = layer::reflection_padding(
-        activation, frames, block.conv.input_channels, padding);
-    activation = layer::conv(activation, frames + 2 * padding, block.conv, cudnn);
+        activation, frames, block.conv.input_channels, padding, true);
+    activation = layer::conv(
+        activation, frames + 2 * padding, block.conv, cudnn, true);
     activation = layer::leaky_relu(activation,
                                    frames * block.conv.output_channels);
-    activation = layer::conv(activation, frames, block.linear, cudnn);
+    activation = layer::conv(activation, frames, block.linear, cudnn, true);
     activation = layer::add(activation, shortcut,
                             frames * block.linear.output_channels);
     cudaFree(shortcut);
@@ -107,7 +115,8 @@ float *upsample_residual_block(float *activation,
     activation = layer::transpose_conv(activation,
                                        frames,
                                        block.transpose_conv,
-                                       cudnn);
+                                       cudnn,
+                                       true);
     frames *= upsample_factor;
 
     // Residual blocks

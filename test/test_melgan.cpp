@@ -5,9 +5,12 @@
 #include "block.hpp"
 #include "convert.hpp"
 #include "cuda.hpp"
+#include "dummy.hpp"
+#include "engine.hpp"
 #include "layer.hpp"
 #include "load.hpp"
 #include "melgan.hpp"
+#include "profile.hpp"
 #include "save.hpp"
 
 
@@ -16,6 +19,7 @@ Constants
 ******************************************************************************/
 
 
+const unsigned int ITERATIONS = 100;
 const std::string TEST_ASSETS_DIR =
     "/home/mrm5248/468-final/melgan-cuda/test/assets/";
 const uint TEST_FRAMES = 887;
@@ -29,8 +33,25 @@ Full system test
 
 void test_melgan()
 {
+    // Load conv weights on device
+    engine::start();
+
+    // Load mels
+    float *mels = load(TEST_ASSETS_DIR + "mels.f32", N_MELS * TEST_FRAMES);
+
+    // Allocate mels
+    unsigned int mel_size = N_MELS * TEST_FRAMES * sizeof(float);
+    float *mels_d = cuda::allocate(mel_size);
+
+    // Copy cpu memory to gpu
+    cuda::copy_to_device(mels_d, mels, mel_size);
+
     // Run inference
-    float *audio = infer_from_file(TEST_ASSETS_DIR + "mels.f32", TEST_FRAMES);
+    cudnnHandle_t cudnn;
+    cudnnCreate(&cudnn);
+    float *audio = forward(mels_d, TEST_FRAMES, cudnn, false);
+    TIME_IT("melgan", ITERATIONS, dummy::forward(mels_d, TEST_FRAMES, cudnn);)
+    cudnnDestroy(cudnn);
 
     // Load answer
     const unsigned int samples = frames_to_samples(TEST_FRAMES);
@@ -48,6 +69,7 @@ void test_melgan()
     // Free memory
     free(audio);
     free(answer);
+    engine::stop();
 
     TEST_CHECK(correct);
 }
@@ -60,6 +82,7 @@ Block tests
 
 void test_residual_block()
 {
+    engine::start();
     const unsigned int frames = 8 * TEST_FRAMES;
     const unsigned int size = frames * CONV_2.input_channels;
     const unsigned int bytes = size * sizeof(float);
@@ -94,6 +117,7 @@ void test_residual_block()
     free(answer);
     free(activation);
     cuda::free(activation_d);
+    engine::stop();
 
     TEST_CHECK(correct);
 }
@@ -145,6 +169,7 @@ void test_add()
 
 void test_conv()
 {
+    engine::start();
     const unsigned int input_frames = TEST_FRAMES + (2 * TEST_PADDING);
     const unsigned int input_size = input_frames * N_MELS;
     const unsigned int input_bytes = input_size * sizeof(float);
@@ -165,13 +190,18 @@ void test_conv()
     // Perform op
     cudnnHandle_t cudnn;
     cudnnCreate(&cudnn);
-    activation_d = layer::conv(activation_d, input_frames, CONV_0, cudnn);
+    float *result_d = layer::conv(
+        activation_d, input_frames, CONV_0, cudnn, false);
+    TIME_IT(
+        "conv",
+        ITERATIONS,
+        dummy::conv(activation_d, input_frames, CONV_0, cudnn);)
     cudnnDestroy(cudnn);
 
     // Copy to host
     free(activation);
     activation = (float *) malloc(output_bytes);
-    cuda::copy_to_host(activation, activation_d, output_bytes);
+    cuda::copy_to_host(activation, result_d, output_bytes);
 
     // Did we get the right answer?
     for (unsigned int i = 0; i < output_size; ++i) {
@@ -181,7 +211,9 @@ void test_conv()
     // Free memory
     free(answer);
     free(activation);
+    cuda::free(result_d);
     cuda::free(activation_d);
+    engine::stop();
 }
 
 
@@ -207,6 +239,9 @@ void test_leaky_relu()
     // Did we get the right answer?
     for (uint i = 0; i < size; ++i) TEST_CHECK(answer[i] == activation[i]);
 
+    // Profile
+    TIME_IT("leaky_relu", ITERATIONS, layer::leaky_relu(activation_d, size);)
+
     // Free memory
     free(answer);
     free(activation);
@@ -231,13 +266,18 @@ void test_reflection_padding()
     cuda::copy_to_device(activation_d, activation, input_bytes);
 
     // Perform op
-    activation_d = layer::reflection_padding(
-        activation_d, TEST_FRAMES, N_MELS, TEST_PADDING);
+    float *result_d = layer::reflection_padding(
+        activation_d, TEST_FRAMES, N_MELS, TEST_PADDING, false);
+    TIME_IT(
+        "reflection_padding",
+        ITERATIONS,
+        dummy::reflection_padding(
+            activation_d, TEST_FRAMES, N_MELS, TEST_PADDING);)
 
     // Copy to host
     free(activation);
     activation = (float *) malloc(output_bytes);
-    cuda::copy_to_host(activation, activation_d, output_bytes);
+    cuda::copy_to_host(activation, result_d, output_bytes);
 
     // Did we get the right answer?
     for (unsigned int i = 0; i < output_size; ++i) {
@@ -248,6 +288,7 @@ void test_reflection_padding()
     free(answer);
     free(activation);
     cuda::free(activation_d);
+    cuda::free(result_d);
 }
 
 
@@ -274,6 +315,9 @@ void test_tanh()
     for (uint i = 0; i < size; ++i)
         TEST_CHECK(abs(answer[i] - activation[i]) < 1e-4);
 
+    // Profile
+    TIME_IT("tanh", ITERATIONS, layer::tanh(activation_d, size);)
+
     // Free memory
     free(answer);
     free(activation);
@@ -283,6 +327,7 @@ void test_tanh()
 
 void test_transpose_conv()
 {
+    engine::start();
     const unsigned int input_frames = TEST_FRAMES;
     const unsigned int input_size = input_frames * CONV_1.output_channels;
     const unsigned int input_bytes = input_size * sizeof(float);
@@ -302,14 +347,18 @@ void test_transpose_conv()
     // Perform op
     cudnnHandle_t cudnn;
     cudnnCreate(&cudnn);
-    activation_d = layer::transpose_conv(
-        activation_d, input_frames, CONV_1, cudnn);
+    float *result_d = layer::transpose_conv(
+        activation_d, input_frames, CONV_1, cudnn, false);
+    TIME_IT(
+        "transpose_conv",
+        ITERATIONS,
+        dummy::transpose_conv(activation_d, input_frames, CONV_1, cudnn);)
     cudnnDestroy(cudnn);
 
     // Copy to host
     free(activation);
     activation = (float *)malloc(output_bytes);
-    cuda::copy_to_host(activation, activation_d, output_bytes);
+    cuda::copy_to_host(activation, result_d, output_bytes);
 
     // Did we get the right answer?
     bool correct = true;
@@ -320,7 +369,10 @@ void test_transpose_conv()
     // Free memory
     free(answer);
     free(activation);
+    cuda::free(result_d);
     cuda::free(activation_d);
+
+    engine::stop();
 
     TEST_CHECK(correct);
 }

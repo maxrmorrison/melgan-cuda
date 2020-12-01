@@ -7,7 +7,10 @@
 
 
 /* Forward pass through all layers */
-float *forward(float *mels, unsigned int frames, cudnnHandle_t cudnn);
+float *forward(float *mels,
+               unsigned int frames,
+               cudnnHandle_t cudnn,
+               bool free_input);
 
 /* Forward pass through a residual block */
 float *residual_block(float *activation,
