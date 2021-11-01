@@ -1,6 +1,6 @@
 # melgan-cuda
 
-CUDA implementation of the MelGAN vocoder. The original MelGAN implementation can be found [here](https://github.com/descriptinc/melgan-neurips). This implementation performs inference 3.78x faster than the original implementation on a NVIDIA RTX 2060 Super GPU. Further speed-ups are possible. A write-up describing this implementation and benchmarking can be found [here](morrison2021improving.pdf).
+CUDA implementation of the MelGAN vocoder. The original MelGAN implementation can be found [here](https://github.com/descriptinc/melgan-neurips). This implementation performs inference 3.78x faster than the original implementation on a NVIDIA RTX 2060 Super GPU. Further speed-ups are possible. A write-up describing this implementation and benchmarking can be found [here](paper.pdf).
 
 
 ### Installation
